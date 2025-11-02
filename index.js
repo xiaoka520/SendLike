@@ -14,27 +14,27 @@ export class SendLike extends plugin {
       priority: 5000,
       rule: [
         {
-          reg: "^赞我$",
+          reg: "^#赞我$",
           fnc: "likeMe",
         },
         {
-          reg: "^赞.*",
+          reg: "^#赞.*",
           fnc: "likeAt",
         },
         {
-          reg: "^/订阅点赞$",
+          reg: "^#订阅点赞$",
           fnc: "subscribe",
         },
         {
-          reg: "^/取消订阅点赞$",
+          reg: "^#取消订阅点赞$",
           fnc: "unsubscribe",
         },
         {
-          reg: "^/订阅点赞列表$",
+          reg: "^#订阅点赞列表$",
           fnc: "listSubscribes",
         },
         {
-          reg: "^/谁赞了bot$",
+          reg: "^#谁赞了bot$",
           fnc: "whoLikedMe",
           permission: "master",
         },
