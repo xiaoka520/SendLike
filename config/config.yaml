@@ -1,0 +1,40 @@
+# 是否启用群白名单
+enable_white_list: false
+
+# 白名单群组列表
+white_list_groups: []
+
+# 订阅点赞的用户列表
+subscribed_users: []
+
+# 每日点赞日期记录（用于确保每天只点赞一次）
+last_like_date: ""
+
+# 点赞回复消息模板
+reply_templates:
+  success:
+    - "👍{total_likes}"
+    - "赞了赞了"
+    - "点赞成功！"
+    - "给{username}点了{total_likes}个赞"
+    - "赞送出去啦！一共{total_likes}个哦！"
+    - "为{username}点赞成功！总共{total_likes}个！"
+    - "点了{total_likes}个，快查收吧！"
+    - "赞已送达，请注意查收~ 一共{total_likes}个！"
+    - "给{username}点了{total_likes}个赞，记得回赞哟！"
+  limit:
+    - "今天给{username}的赞已达上限"
+    - "赞了那么多还不够吗？"
+    - "{username}别太贪心哟~"
+    - "今天赞过啦！"
+    - "今天已经赞过啦~"
+    - "已经赞过啦~"
+    - "还想要赞？不给了！"
+  stranger:
+    - "不加好友不赞"
+    - "我和你有那么熟吗？"
+    - "你谁呀？"
+    - "你是我什么人凭啥要我赞你？"
+    - "不想赞你这个陌生人"
+    - "我不认识你，不赞！"
+    - "加我好友了吗就想要我赞你？"
