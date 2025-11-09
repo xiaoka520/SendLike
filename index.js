@@ -61,8 +61,8 @@ export class SendLike extends plugin {
   }
 
   // 点赞核心逻辑
-  async _like(userId) {
-    const util = new LikeUtil(this.e);
+  async _like(e, userId) {
+    const util = new LikeUtil(e);
     let totalLikes = 0;
     const userInfo = await util.getUserInfo(userId);
     const username = userInfo?.nickname || "未知用户";
@@ -91,27 +91,25 @@ export class SendLike extends plugin {
   // 发送者要求点赞
   async likeMe(e) {
     if (!this.checkWhiteList(e)) return false;
-
-    const reply = await this._like(e.user_id);
-    await this.reply(reply);
+    const reply = await this._like(e, e.user_id);
+    await e.reply(reply);
     return true;
   }
 
   // 给@的用户点赞
   async likeAt(e) {
     if (!this.checkWhiteList(e)) return false;
-
     const util = new LikeUtil(e);
     const atList = util.getAtUsers();
     if (atList.length === 0) return false;
 
     const replies = [];
     for (const userId of atList) {
-      const reply = await this._like(userId);
+      const reply = await this._like(e, userId);
       replies.push(reply);
     }
 
-    await this.reply(replies.join("\\n"));
+    await e.reply(replies.join("\\n"));
     return true;
   }
 
@@ -121,7 +119,7 @@ export class SendLike extends plugin {
     const subscribers = Config.get("subscribed_users", []);
 
     if (subscribers.includes(userId)) {
-      await this.reply("你已经订阅点赞了哦~");
+      await e.reply("你已经订阅点赞了哦~");
       return true;
     }
 
@@ -129,7 +127,7 @@ export class SendLike extends plugin {
     Config.set("subscribed_users", subscribers);
     await Config.save();
 
-    await this.reply("订阅成功！我将每天自动为你点赞");
+    await e.reply("订阅成功！我将每天自动为你点赞");
     return true;
   }
 
@@ -139,7 +137,7 @@ export class SendLike extends plugin {
     const subscribers = Config.get("subscribed_users", []);
 
     if (!subscribers.includes(userId)) {
-      await this.reply("你还没有订阅点赞哦~");
+      await e.reply("你还没有订阅点赞哦~");
       return true;
     }
 
@@ -149,7 +147,7 @@ export class SendLike extends plugin {
     );
     await Config.save();
 
-    await this.reply("已取消订阅！我将不再自动给你点赞");
+    await e.reply("已取消订阅！我将不再自动给你点赞");
     return true;
   }
 
@@ -157,12 +155,12 @@ export class SendLike extends plugin {
   async listSubscribes(e) {
     const subscribers = Config.get("subscribed_users", []);
     if (subscribers.length === 0) {
-      await this.reply("当前没有订阅点赞的用户哦~");
+      await e.reply("当前没有订阅点赞的用户哦~");
       return true;
     }
 
     const userList = subscribers.join("\\n");
-    await this.reply(`当前订阅点赞的用户ID列表：\\n${userList}`);
+    await e.reply(`当前订阅点赞的用户ID列表：\\n${userList}`);
     return true;
   }
 
@@ -181,7 +179,7 @@ export class SendLike extends plugin {
       .map((user) => `【${user.nick}】赞了我${user.count}次`)
       .join("\\n");
 
-    await this.reply(likeInfo || "暂无有效的点赞信息");
+    await e.reply(likeInfo || "暂无有效的点赞信息");
     return true;
   }
 
@@ -194,7 +192,7 @@ export class SendLike extends plugin {
     if (subscribers.length === 0) return;
 
     for (const userId of subscribers) {
-      await this._like(userId);
+      await this._like(null, userId);
       await new Promise((resolve) => setTimeout(resolve, 1000)); // 加入间隔防止频率过高
     }
 

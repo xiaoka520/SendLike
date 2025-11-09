@@ -1,5 +1,33 @@
 import { segment } from "icqq";
 import lodash from "lodash";
+import Config from "../config/config.js";
+
+function safeCallApi(e, action, params) {
+  // 尝试常见宿主提供的 API 调用入口
+  try {
+    const host = e || globalThis || {};
+    if (host.app && typeof host.app.callApi === "function") {
+      return host.app.callApi(action, params);
+    }
+    if (host.client && typeof host.client.callApi === "function") {
+      return host.client.callApi(action, params);
+    }
+    if (host.bot && typeof host.bot.callApi === "function") {
+      return host.bot.callApi(action, params);
+    }
+    // 某些环境提供直接的 http 请求方法
+    if (host.app && typeof host.app.httpPost === "function") {
+      return host.app.httpPost(`/api/${action}`, params);
+    }
+  } catch (err) {
+    // 交给上层捕获并记录
+    throw err;
+  }
+
+  throw new Error(
+    `no_api: cannot call action ${action} - unsupported host api surface`
+  );
+}
 
 export default class LikeUtil {
   constructor(e) {
@@ -14,7 +42,11 @@ export default class LikeUtil {
    */
   async sendLike(userId, times = 10) {
     try {
-      await this.e.bot.sendLike(userId, times);
+      // 尝试 NapCat / OneBot 兼容的 send_like 接口
+      await safeCallApi(this.e, "send_like", {
+        user_id: Number(userId),
+        times: Number(times),
+      });
       return true;
     } catch (error) {
       logger.error(`[SendLike] 点赞失败: ${error}`);
@@ -28,7 +60,12 @@ export default class LikeUtil {
    */
   async getUserInfo(userId) {
     try {
-      return await this.e.bot.getStrangerInfo(userId);
+      // NapCat / OneBot: get_stranger_info
+      const res = await safeCallApi(this.e, "get_stranger_info", {
+        user_id: Number(userId),
+      });
+      // 兼容不同返回结构
+      return res?.data || res || null;
     } catch (error) {
       logger.error(`[SendLike] 获取用户信息失败: ${error}`);
       return null;
@@ -41,14 +78,14 @@ export default class LikeUtil {
    */
   getAtUsers() {
     const atList = [];
-    if (this.e.message) {
-      for (const msg of this.e.message) {
-        if (msg.type === "at") {
-          atList.push(Number(msg.qq));
-        }
+    const messages = this.e?.message || [];
+    for (const msg of messages) {
+      if (msg.type === "at") {
+        atList.push(Number(msg.qq));
       }
     }
-    return atList.filter((qq) => qq !== this.e.bot.uin); // 过滤掉机器人自己
+    const botUin = this.e?.bot?.uin || (globalThis?.Bot?.uin ?? null);
+    return atList.filter((qq) => qq !== botUin); // 过滤掉机器人自己
   }
 
   /**
@@ -56,8 +93,10 @@ export default class LikeUtil {
    */
   async getProfileLike() {
     try {
-      const data = await this.e.bot.getProfileLike();
-      return data?.favoriteInfo?.userInfos || [];
+      const res = await safeCallApi(this.e, "get_profile_like", {});
+      // 兼容 OneBot 风格返回
+      const data = res?.data || res;
+      return data?.favoriteInfo?.userInfos || data?.userInfos || [];
     } catch (error) {
       logger.error(`[SendLike] 获取点赞列表失败: ${error}`);
       return [];
