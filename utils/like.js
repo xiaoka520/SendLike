@@ -2,28 +2,82 @@ import { segment } from "icqq";
 import lodash from "lodash";
 import Config from "../config/config.js";
 
-function safeCallApi(e, action, params) {
-  // 尝试常见宿主提供的 API 调用入口
+async function safeCallApi(e, action, params) {
+  // 尝试常见宿主提供的 API 调用入口（异步）
+  const hostsToInspect = [
+    { name: "event", obj: e },
+    { name: "e.app", obj: e?.app },
+    { name: "e.client", obj: e?.client },
+    { name: "e.bot", obj: e?.bot },
+    { name: "global.app", obj: globalThis?.app },
+    { name: "global.client", obj: globalThis?.client },
+    { name: "global.bot", obj: globalThis?.bot },
+  ];
+
+  const attempted = [];
+
+  const inspect = (obj) => {
+    try {
+      if (!obj) return null;
+      return Object.keys(obj).slice(0, 50);
+    } catch (err) {
+      return null;
+    }
+  };
+
+  // 打印可用表面信息，帮助排查
   try {
-    const host = e || globalThis || {};
-    if (host.app && typeof host.app.callApi === "function") {
-      return host.app.callApi(action, params);
+    const surfaces = {};
+    for (const h of hostsToInspect) {
+      surfaces[h.name] = inspect(h.obj) || null;
     }
-    if (host.client && typeof host.client.callApi === "function") {
-      return host.client.callApi(action, params);
-    }
-    if (host.bot && typeof host.bot.callApi === "function") {
-      return host.bot.callApi(action, params);
-    }
-    // 某些环境提供直接的 http 请求方法
-    if (host.app && typeof host.app.httpPost === "function") {
-      return host.app.httpPost(`/api/${action}`, params);
-    }
+    logger.info(
+      `[SendLike][safeCallApi] inspect surfaces: ${JSON.stringify(surfaces)}`
+    );
   } catch (err) {
-    // 交给上层捕获并记录
-    throw err;
+    logger.info(`[SendLike][safeCallApi] inspect failed: ${err}`);
   }
 
+  // 按优先顺序尝试真实调用
+  const candidates = [
+    { name: "e.app.callApi", fn: () => e?.app?.callApi(action, params) },
+    { name: "e.client.callApi", fn: () => e?.client?.callApi(action, params) },
+    { name: "e.bot.callApi", fn: () => e?.bot?.callApi(action, params) },
+    {
+      name: "global.app.callApi",
+      fn: () => globalThis?.app?.callApi(action, params),
+    },
+    {
+      name: "global.client.callApi",
+      fn: () => globalThis?.client?.callApi(action, params),
+    },
+    {
+      name: "global.bot.callApi",
+      fn: () => globalThis?.bot?.callApi(action, params),
+    },
+    {
+      name: "e.app.httpPost",
+      fn: () => e?.app?.httpPost(`/api/${action}`, params),
+    },
+  ];
+
+  for (const c of candidates) {
+    try {
+      const res = await c.fn();
+      if (res !== undefined && res !== null) {
+        logger.info(`[SendLike][safeCallApi] succeeded via ${c.name}`);
+        return res;
+      }
+    } catch (err) {
+      attempted.push({ name: c.name, error: String(err) });
+    }
+  }
+
+  logger.error(
+    `[SendLike][safeCallApi] no suitable api surface for action ${action}, attempted: ${JSON.stringify(
+      attempted
+    )}`
+  );
   throw new Error(
     `no_api: cannot call action ${action} - unsupported host api surface`
   );
@@ -53,7 +107,6 @@ export default class LikeUtil {
       return false;
     }
   }
-
   /**
    * 获取用户信息
    * @param {number} userId 用户QQ号
