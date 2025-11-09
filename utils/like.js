@@ -1,4 +1,3 @@
-import { segment } from "icqq";
 import lodash from "lodash";
 import Config from "../config/config.js";
 
@@ -40,24 +39,40 @@ async function safeCallApi(e, action, params) {
 
   // 按优先顺序尝试真实调用
   const candidates = [
-    { name: "e.app.callApi", fn: () => e?.app?.callApi(action, params) },
-    { name: "e.client.callApi", fn: () => e?.client?.callApi(action, params) },
-    { name: "e.bot.callApi", fn: () => e?.bot?.callApi(action, params) },
+    // 直接使用 sendApi 方法
+    { name: "e.bot.sendApi", fn: () => e?.bot?.sendApi?.(action, params) },
+    // 通过 napcat 接口发送
     {
-      name: "global.app.callApi",
-      fn: () => globalThis?.app?.callApi(action, params),
+      name: "e.bot.napcat.sendLike",
+      fn: () => {
+        if (action === "send_like" && e?.bot?.napcat?.sendLike) {
+          return e.bot.napcat.sendLike(params.user_id, params.times);
+        }
+        return null;
+      },
     },
     {
-      name: "global.client.callApi",
-      fn: () => globalThis?.client?.callApi(action, params),
+      name: "e.bot.napcat.getStrangerInfo",
+      fn: () => {
+        if (action === "get_stranger_info" && e?.bot?.napcat?.getStrangerInfo) {
+          return e.bot.napcat.getStrangerInfo(params.user_id);
+        }
+        return null;
+      },
     },
     {
-      name: "global.bot.callApi",
-      fn: () => globalThis?.bot?.callApi(action, params),
+      name: "e.bot.napcat.getProfileLike",
+      fn: () => {
+        if (action === "get_profile_like" && e?.bot?.napcat?.getProfileLike) {
+          return e.bot.napcat.getProfileLike();
+        }
+        return null;
+      },
     },
+    // 尝试 sendApi 的全局版本
     {
-      name: "e.app.httpPost",
-      fn: () => e?.app?.httpPost(`/api/${action}`, params),
+      name: "bot.sendApi",
+      fn: () => globalThis?.Bot?.sendApi?.(action, params),
     },
   ];
 
