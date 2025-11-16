@@ -102,6 +102,15 @@ export class SendLike extends plugin {
         return util.getReplyTemplate("limit", { username });
       }
 
+      // 如果 NapCat 返回了业务消息（message/wording），优先使用它作为回复，避免随机模板带来的尴尬
+      if (nap && (nap.wording || nap.message)) {
+        try {
+          return nap.wording || nap.message;
+        } catch (e) {
+          // 若读取 nap 字段出错则回退到默认模板
+        }
+      }
+
       return util.getReplyTemplate("stranger", { username });
     }
 
