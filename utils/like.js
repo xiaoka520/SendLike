@@ -24,18 +24,7 @@ async function safeCallApi(e, action, params) {
     }
   };
 
-  // 打印可用表面信息，帮助排查
-  try {
-    const surfaces = {};
-    for (const h of hostsToInspect) {
-      surfaces[h.name] = inspect(h.obj) || null;
-    }
-    logger.info(
-      `[SendLike][safeCallApi] inspect surfaces: ${JSON.stringify(surfaces)}`
-    );
-  } catch (err) {
-    logger.info(`[SendLike][safeCallApi] inspect failed: ${err}`);
-  }
+  // inspect surfaces: 不在正常调用路径中打印，避免产生噪音日志
 
   // 按优先顺序尝试真实调用
   const candidates = [
@@ -80,7 +69,7 @@ async function safeCallApi(e, action, params) {
     try {
       const res = await c.fn();
       if (res !== undefined && res !== null) {
-        logger.info(`[SendLike][safeCallApi] succeeded via ${c.name}`);
+        // 成功返回但不输出信息日志（这是正常路径）
         return res;
       }
     } catch (err) {
@@ -92,9 +81,7 @@ async function safeCallApi(e, action, params) {
           typeof err === "object" &&
           (err.status || err.retcode || err.message)
         ) {
-          logger.info(
-            `[SendLike][safeCallApi] api returned error-object via ${c.name}, treating as response`
-          );
+          // NapCat 业务错误对象（例如达到上限），作为业务返回处理，不记录 info 日志
           return err;
         }
       } catch (e2) {
