@@ -14,13 +14,9 @@
 - 配置信息通过构造函数注入 `AstrBotConfig`（存在 `self.config.save_config()` 调用表示持久化点）。
 
 ## 项目特有约定 / 可修改点
-- 文本回复模板集中在 `main.py` 顶部的列表（例如 `success_responses`, `limit_responses` 等）。修改这些列表会直接影响回复内容。
-- 白名单与订阅用户通过 `config.get("enable_white_list_groups")`, `config.get("white_list_groups")`, `config.get("subscribed_users")` 读取并通过 `self.config.save_config()` 保存。
-- 获取被 @ 的用户 id：静态方法 `get_ats(event: AiocqhttpMessageEvent)` 返回 `Comp.At` 段的 qq id 列表，注意过滤自身 id。
 
-## 常见变更模式（示例）
+```md
 - 添加新命令：在类中增加带 `@filter.command("命令名")` 的 async 方法，使用 `yield event.plain_result(...)` 返回文本，或 `yield event.image_result(url)` 返回图像。
-- 更改持久化键：修改 `metadata.yaml` 或在 `main.py` 中对 `self.config.get("key")` 的键名保持一致，确保 `.save_config()` 在有变更时被调用。
 - 错误处理：`aiocqhttp.exceptions.ActionFailed` 在 `_like` 中被捕获并映射为用户可读的回复；参照该模式做外部 API 调用的容错。
 
 ## 依赖与运行环境提示

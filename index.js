@@ -53,12 +53,6 @@ export class SendLike extends plugin {
     await Config.init();
   }
 
-  // 检查白名单
-  checkWhiteList(e) {
-    if (!Config.get("enable_white_list", false)) return true;
-    const whiteList = Config.get("white_list_groups", []);
-    return !e.isGroup || whiteList.includes(e.group_id.toString());
-  }
 
   // 点赞核心逻辑
   async _like(e, userId) {
@@ -121,7 +115,6 @@ export class SendLike extends plugin {
 
   // 发送者要求点赞
   async likeMe(e) {
-    if (!this.checkWhiteList(e)) return false;
     const reply = await this._like(e, e.user_id);
     await e.reply(reply);
     return true;
@@ -129,7 +122,6 @@ export class SendLike extends plugin {
 
   // 给@的用户点赞
   async likeAt(e) {
-    if (!this.checkWhiteList(e)) return false;
     const util = new LikeUtil(e);
     const atList = util.getAtUsers();
     if (atList.length === 0) return false;

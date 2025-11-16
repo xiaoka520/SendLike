@@ -31,12 +31,6 @@ pnpm install
 配置文件位于 `plugins/send-like/config/config.yaml`：
 
 ```yaml
-# 是否启用群白名单
-enable_white_list: false
-
-# 白名单群组列表
-white_list_groups: []
-
 # 订阅点赞的用户列表
 subscribed_users: []
 ```

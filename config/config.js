@@ -9,8 +9,6 @@ const configPath = `${_path}/plugins/send-like/config/config.yaml`;
 class Config {
   constructor() {
     this.config = {
-      enable_white_list: false,
-      white_list_groups: [],
       subscribed_users: [],
       last_like_date: "",
       reply_templates: {
