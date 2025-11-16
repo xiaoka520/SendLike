@@ -136,14 +136,24 @@ export default class LikeUtil {
   async sendLike(userId, times = 10) {
     try {
       // 尝试 NapCat / OneBot 兼容的 send_like 接口
-      await safeCallApi(this.e, "send_like", {
+      const res = await safeCallApi(this.e, "send_like", {
         user_id: Number(userId),
         times: Number(times),
       });
-      return true;
+
+      // 如果 NapCat 返回业务错误对象（status/retcode/message），把它作为业务结果返回
+      if (
+        res &&
+        typeof res === "object" &&
+        (res.status || res.retcode || res.message)
+      ) {
+        return { success: false, nap: res };
+      }
+
+      return { success: true, data: res };
     } catch (error) {
       logger.error(`[SendLike] 点赞失败: ${error}`);
-      return false;
+      return { success: false, error: String(error) };
     }
   }
   /**
@@ -156,6 +166,14 @@ export default class LikeUtil {
       const res = await safeCallApi(this.e, "get_stranger_info", {
         user_id: Number(userId),
       });
+      // 如果是 NapCat 错误对象，返回 null
+      if (
+        res &&
+        typeof res === "object" &&
+        (res.status || res.retcode || res.message)
+      ) {
+        return null;
+      }
       // 兼容不同返回结构
       return res?.data || res || null;
     } catch (error) {

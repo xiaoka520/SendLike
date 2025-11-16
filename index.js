@@ -68,18 +68,28 @@ export class SendLike extends plugin {
     const username = userInfo?.nickname || "未知用户";
 
     for (let i = 0; i < 5; i++) {
-      try {
-        if (await util.sendLike(userId, 10)) {
-          totalLikes += 10;
-        }
-      } catch (error) {
-        if (error.message?.includes("已达")) {
-          return util.getReplyTemplate("limit", { username });
-        } else if (error.message?.includes("权限")) {
-          return "你设了权限不许陌生人赞你";
-        } else {
-          return util.getReplyTemplate("stranger", { username });
-        }
+      const result = await util.sendLike(userId, 10);
+      if (result && result.success) {
+        totalLikes += 10;
+        continue;
+      }
+
+      // 处理 NapCat 业务错误返回（例如达到上限）
+      const nap = result?.nap || null;
+      const errStr = result?.error || "";
+      if (
+        nap &&
+        (nap.retcode === 1200 ||
+          (nap.message && nap.message.includes("达上限")))
+      ) {
+        return util.getReplyTemplate("limit", { username });
+      } else if (
+        (nap && nap.message && nap.message.includes("权限")) ||
+        errStr.includes("权限")
+      ) {
+        return "你设了权限不许陌生人赞你";
+      } else {
+        return util.getReplyTemplate("stranger", { username });
       }
     }
 
