@@ -77,6 +77,14 @@ export class SendLike extends plugin {
       // 处理 NapCat 业务错误返回（例如达到上限）
       const nap = result?.nap || null;
       const errStr = result?.error || "";
+      // 优先检查权限相关的错误信息（NapCat 用 retcode 1200 表示多种失败）
+      if (
+        (nap && nap.message && nap.message.includes("权限")) ||
+        errStr.includes("权限")
+      ) {
+        return "你设了权限不许陌生人赞你";
+      }
+
       if (
         nap &&
         (nap.retcode === 1200 ||
@@ -92,14 +100,9 @@ export class SendLike extends plugin {
         }
 
         return util.getReplyTemplate("limit", { username });
-      } else if (
-        (nap && nap.message && nap.message.includes("权限")) ||
-        errStr.includes("权限")
-      ) {
-        return "你设了权限不许陌生人赞你";
-      } else {
-        return util.getReplyTemplate("stranger", { username });
       }
+
+      return util.getReplyTemplate("stranger", { username });
     }
 
     return totalLikes > 0
