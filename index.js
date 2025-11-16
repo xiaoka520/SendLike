@@ -65,7 +65,7 @@ export class SendLike extends plugin {
     const util = new LikeUtil(e);
     let totalLikes = 0;
     const userInfo = await util.getUserInfo(userId);
-    const username = userInfo?.nickname || "未知用户";
+    const username = userInfo?.nickname || "你";
 
     for (let i = 0; i < 5; i++) {
       const result = await util.sendLike(userId, 10);
@@ -82,6 +82,15 @@ export class SendLike extends plugin {
         (nap.retcode === 1200 ||
           (nap.message && nap.message.includes("达上限")))
       ) {
+        // 如果是给自己点赞（#赞我），返回更自然的提示
+        try {
+          if (e && String(e.user_id) === String(userId)) {
+            return "今天已经给你点过赞啦～";
+          }
+        } catch (ex) {
+          // 忽略比较错误，回退到默认模板
+        }
+
         return util.getReplyTemplate("limit", { username });
       } else if (
         (nap && nap.message && nap.message.includes("权限")) ||
