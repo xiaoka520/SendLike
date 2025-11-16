@@ -84,7 +84,31 @@ async function safeCallApi(e, action, params) {
         return res;
       }
     } catch (err) {
-      attempted.push({ name: c.name, error: String(err) });
+      // 有些宿主在业务失败时会以 reject({status, retcode, message}) 的形式返回（NapCat）
+      // 把这类业务错误当作有效返回，交由上层业务逻辑处理，避免 noisy errors
+      try {
+        if (
+          err &&
+          typeof err === "object" &&
+          (err.status || err.retcode || err.message)
+        ) {
+          logger.info(
+            `[SendLike][safeCallApi] api returned error-object via ${c.name}, treating as response`
+          );
+          return err;
+        }
+      } catch (e2) {
+        // ignore
+      }
+
+      // 序列化错误用于记录
+      let serr;
+      try {
+        serr = JSON.stringify(err);
+      } catch (e) {
+        serr = String(err);
+      }
+      attempted.push({ name: c.name, error: serr });
     }
   }
 
