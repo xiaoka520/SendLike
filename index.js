@@ -71,12 +71,13 @@ export class SendLike extends plugin {
       // 处理 NapCat 业务错误返回（例如达到上限）
       const nap = result?.nap || null;
       const errStr = result?.error || "";
-      // 优先检查权限相关的错误信息（NapCat 用 retcode 1200 表示多种失败）
-      if (
-        (nap && nap.message && nap.message.includes("权限")) ||
-        errStr.includes("权限")
-      ) {
-        return "你设了权限不许陌生人赞你";
+      // 不要把包含 “权限” 字眼的返回当作确定性的“对方拒绝陌生人点赞”断言。
+      // 一些宿主或 NapCat 在失败时会返回含糊的提示词（例如权限/隐私），但这并不
+      // 意味着插件可以或应该更改目标用户的隐私设置。统一使用 stranger 模板
+      // 返回更中性的失败提示，避免误导用户。若未来需要更细致的分类再补充。
+      // （保留 nap/err 的原始信息以便日志分析）
+      if ((nap && nap.message && nap.message.includes("权限")) || errStr.includes("权限")) {
+        return util.getReplyTemplate("stranger", { username });
       }
 
       if (

@@ -3,19 +3,21 @@
 喵崽 QQ 点赞插件，支持一键点赞、自动订阅点赞等功能。
 
 ## 安装方法
+配置文件位于 `plugins/send-like/config/config.yaml`：
 
-1. 在 Miao-Yunzai 根目录下打开终端，执行：
+```yaml
+# 订阅点赞的用户列表
+subscribed_users: []
 
-```bash
-cd plugins
-git clone https://github.com/xiaoka520/SendLike.git send-like
-cd send-like
-pnpm install
+# 每日点赞日期记录（用于确保每天只点赞一次）
+last_like_date: ""
+
+# 点赞回复消息模板（可按 type 调整）
+reply_templates:
+	success: []
+	limit: []
+	stranger: []
 ```
-
-2. 重启喵崽即可使用
-
-## 功能指令
 
 | 指令          | 说明                               | 示例          |
 | ------------- | ---------------------------------- | ------------- |
@@ -37,9 +39,9 @@ subscribed_users: []
 
 ## 注意事项
 
-- 每个用户每天最多可以收到 50 个赞
-- 非好友用户可能会因为隐私设置无法点赞
-- 自动点赞功能在每天早上 7 点执行
+- 每个用户每天最多可以收到一定数量的赞（由宿主/平台限制），插件会在到达上限时返回限额提示。
+- 插件默认不使用“白名单”机制；是否能成功为目标点赞仍取决于目标 QQ 的隐私设置（是否允许陌生人点赞）和宿主实现。
+- 自动点赞功能在每天早上 7 点执行（由 `index.js` 中的定时任务控制）。
 
 ## 开源相关
 

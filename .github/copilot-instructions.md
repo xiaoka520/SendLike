@@ -1,46 +1,39 @@
-## 快速定位（目的）
-本文件帮助 AI 代码代理快速理解并改动此 AstrBot 插件仓库（`astrbot_plugin_zanwo`）。主要目标：定位入口点、配置保存点、消息过滤与响应模式、以及调试/集成提示。
+```instructions
+## 目的
+帮助 AI 代码代理快速上手并修改本仓库的 SendLike 插件。重点指出入口点、配置与常见修改点、以及与宿主（Miao-Yunzai/OneBot/NapCat）交互的注意事项。
 
-## 关键文件
-- `main.py` — 插件主实现，包含 `zanwo` 类（继承 `Star`）和所有命令/事件处理逻辑。
-- `metadata.yaml` — 插件元信息（name/version/author），用于发布与识别。
-- `_conf_schema.json` — 配置 schema（若存在），用于了解可持久化配置项。
-- `README.md` — 使用说明与命令示例，可用于生成帮助文本或校验命令行为。
+## 关键文件（快速索引）
+- `index.js` — 插件主入口，包含命令路由、点赞主流程 `_like`、订阅/定时任务逻辑。
+- `utils/like.js` — 与宿主 API 交互的工具：`safeCallApi`（尝试多种宿主接口）、`sendLike`、`getUserInfo`、`getProfileLike` 等。
+- `config/config.js`、`config/config.yaml` — 配置存储与模板（`subscribed_users`、`last_like_date`、`reply_templates`）。
+- `README.md` — 使用/安装说明（已与代码同步）。
 
-## 架构与数据流（简明）
-- 插件通过 `@register(...)` 注册为 AstrBot 的一个 `Star` 实例（见 `main.py` 顶部）。
-- 事件进入点：带有 `@filter.command` 或 `@filter.regex` 的方法（例如 `like_me`, `subscribe_like` 等）。
-- 与平台交互的客户端是 `event.bot`（类型：`CQHttp`），用于调用 `send_like`, `get_profile_like`, `get_stranger_info` 等 API。
-- 配置信息通过构造函数注入 `AstrBotConfig`（存在 `self.config.save_config()` 调用表示持久化点）。
+## 当前架构与行为要点（简明）
+- 命令由 `index.js` 中的正则规则匹配（例如 `#赞我`、`#赞@`、`#订阅点赞` 等），对应方法执行点赞逻辑。
+- 与平台的调用统一通过 `utils/like.js` 的 `safeCallApi`，它会按优先顺序尝试多种宿主表面（`e.bot.sendApi`、`e.bot.napcat.*`、`global.Bot.sendApi` 等）。
+- 配置仅保存插件内部用到的键：`subscribed_users`、`last_like_date`、以及 `reply_templates`（success/limit/stranger）。仓库没有“白名单”相关键（请不要在代码中引入不存在的配置键）。
+- 关于“陌生人点赞”的策略：插件不再把包含“权限”字眼的宿主返回直接断定为“对方明确拒绝陌生人点赞”，而是统一使用 `stranger` 模板给出中性提示（目的是避免错误地把失败归因于对方设置）。如果需更具体的判定，请在 `utils/like.js` 中增强 `safeCallApi` 的返回解析并增加可选配置。
 
-## 项目特有约定 / 可修改点
+## 常见变更任务与示例
+- 添加/修改回复模板：编辑 `config/config.yaml` 中 `reply_templates`（`success/limit/stranger`），插件会在运行时热加载（`config.js` 使用 chokidar 监听）。
+- 新增命令：在 `index.js` 构造器的 `rule` 数组新增一个规则（正则 + 方法名），并在类中加入对应的 async 方法，使用 `await e.reply(...)` 返回。
+- 调试宿主 API：在 `utils/like.js.safeCallApi` 中可以查看尝试过的候选表面（注释中列出）。若宿主实现不同，可优先把你的宿主表面塞到候选数组前面。
 
-```md
-- 添加新命令：在类中增加带 `@filter.command("命令名")` 的 async 方法，使用 `yield event.plain_result(...)` 返回文本，或 `yield event.image_result(url)` 返回图像。
-- 错误处理：`aiocqhttp.exceptions.ActionFailed` 在 `_like` 中被捕获并映射为用户可读的回复；参照该模式做外部 API 调用的容错。
+## 调试与验证建议
+- 本地运行/调试：把插件目录放到 Miao-Yunzai 或目标宿主的 `plugins` 下，按 README 的步骤安装依赖并重启宿主。
+- 快速模拟：在单元或临时脚本中 mock `e.bot.napcat.sendLike` 返回不同形式（成功对象 / NapCat 业务错误对象 {retcode,status,message} / 抛错），以验证 `_like` 的分支处理。
+- 日志：主要关键点（`safeCallApi` 的 attempted 列表、`sendLike`/`get_stranger_info` 的原始返回）对排查非常有用，避免在用户可见消息中做过度推断。
 
-## 依赖与运行环境提示
-- 目标运行环境：Python 3.8+
-- 主要依赖（从源码可见）：`aiocqhttp`, `astrbot` 框架。仓库没有顶层运行脚本；插件按 AstrBot 插件机制被载入。
-- 本地调试：把本插件放入 AstrBot 的插件目录并运行 AstrBot 主进程；或在单元测试中 mock `Aiocqhttp` 客户端并调用 `zanwo` 的方法。
+## 编辑优先级建议
+1. 修改回复模板（`config/config.yaml`）——低风险，直接可见效果。
+2. 修改 `index.js` 中的业务判断（例如对 NapCat 返回的判定）——中等风险，需添加针对性单元/模拟测试。
+3. 扩展或改写 `safeCallApi` 以适配新的宿主 API——高风险，需保证对旧宿主兼容。
 
-## 调试与测试要点
-- 若要模拟点赞行为，可 mock `client.send_like` 以触发不同的异常路径（达到上限 / 权限问题 / 成功）。
-- 持久化行为：修改 `self.subscribed_users` 后应调用 `self.config.save_config()`，检查配置文件（由 AstrBot 管理）是否更新。
-- 日志与快速定位：在触发路径中临时添加 `print()` 或日志以查看 `event` 的 `message_str`, `get_sender_id()`, `get_group_id()` 等字段。
-
-## 不要做的事（针对 AI 代理的限制）
-- 不要假设有单元测试或 CI 配置；仓库当前没有测试目录。
-- 不要修改 AstrBot 框架外的行为（例如更改 `aiocqhttp` 的公共 API）——只在插件内部适配。
-
-## 编辑优先级建议（小列表）
-1. 优先修改 `main.py` 顶部的回复模板与错词映射：影响范围大且低风险。
-2. 修改配置键或持久化逻辑时，确保同时更新 `_conf_schema.json` / `metadata.yaml`（如果有关联）。
-3. 新增命令时保持与现有 `filter.command` / `filter.regex` 风格一致，并使用 `PermissionType` 装饰器保护管理命令。
-
-## 需要人工确认的点
-- 插件如何在目标 AstrBot 环境中被加载（插件目录路径、插件清单格式）。
-- 是否允许更新 `metadata.yaml` 的 `repo` 字段。若需要我可以生成一个小的 PR 建议。
+## 已知差异/注意点
+- README 中原先提到的“白名单”机制已移除，配置文件当前不包含 `enable_white_list` 或 `white_list_groups`。
+- 是否能成功点赞仍依赖目标 QQ 的隐私设置与宿主的能力；插件只能根据宿主回包给出提示，不能改变目标的隐私策略。
 
 ---
-如果上述任何部分不清楚或你希望我把某些示例转成具体的代码修改（例如替换某些回复模板或添加一个新的命令），告诉我哪一项，我会立刻改写并提交补丁。 
+如果你希望我把某些说明转成自动化的验证脚本（例如自动模拟 NapCat 不同返回并运行 `_like`），或需要我把某些模板改为更礼貌/中性的文本，告诉我哪一项，我会直接修改并提交补丁。
+```
+3. 新增命令时保持与现有 `filter.command` / `filter.regex` 风格一致，并使用 `PermissionType` 装饰器保护管理命令。
