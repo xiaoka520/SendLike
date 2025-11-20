@@ -69,7 +69,16 @@ async function safeCallApi(e, action, params) {
     try {
       const res = await c.fn();
       if (res !== undefined && res !== null) {
-        // 成功返回但不输出信息日志（这是正常路径）
+        // 成功返回（或业务错误对象）——记录原始返回便于排查宿主/napcat 返回的业务信息
+        try {
+          logger.info(
+            `[SendLike][safeCallApi] candidate ${c.name} returned: ${JSON.stringify(
+              res
+            )}`
+          );
+        } catch (e) {
+          // 忽略序列化错误
+        }
         return res;
       }
     } catch (err) {
@@ -127,6 +136,16 @@ export default class LikeUtil {
         user_id: Number(userId),
         times: Number(times),
       });
+
+      try {
+        logger.info(
+          `[SendLike][sendLike] user:${userId} times:${times} raw_response:${JSON.stringify(
+            res
+          )}`
+        );
+      } catch (e) {
+        // ignore serialization errors
+      }
 
       // 如果 NapCat 返回业务错误对象（status/retcode/message），把它作为业务结果返回
       if (

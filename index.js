@@ -61,16 +61,15 @@ export class SendLike extends plugin {
     const userInfo = await util.getUserInfo(userId);
     const username = userInfo?.nickname || "你";
 
-    for (let i = 0; i < 5; i++) {
-      const result = await util.sendLike(userId, 10);
-      if (result && result.success) {
-        totalLikes += 10;
-        continue;
-      }
+    // 直接尝试一次性点赞 50 次（符合预期：陌生人点赞应当点 50 次）
+    const result = await util.sendLike(userId, 50);
+    if (result && result.success) {
+      totalLikes += 50;
+    }
 
-      // 处理 NapCat 业务错误返回（例如达到上限）
-      const nap = result?.nap || null;
-      const errStr = result?.error || "";
+    // 处理 NapCat 业务错误返回（例如达到上限）
+    const nap = result?.nap || null;
+    const errStr = result?.error || "";
       // 不要把包含 “权限” 字眼的返回当作确定性的“对方拒绝陌生人点赞”断言。
       // 一些宿主或 NapCat 在失败时会返回含糊的提示词（例如权限/隐私），但这并不
       // 意味着插件可以或应该更改目标用户的隐私设置。统一使用 stranger 模板
@@ -80,38 +79,35 @@ export class SendLike extends plugin {
         return util.getReplyTemplate("stranger", { username });
       }
 
-      if (
-        nap &&
-        (nap.retcode === 1200 ||
-          (nap.message && nap.message.includes("达上限")))
-      ) {
-        // 如果是给自己点赞（#赞我），返回更自然的提示
-        try {
-          if (e && String(e.user_id) === String(userId)) {
-            return "今天已经给你点过赞啦～";
-          }
-        } catch (ex) {
-          // 忽略比较错误，回退到默认模板
+    if (
+      nap &&
+      (nap.retcode === 1200 || (nap.message && nap.message.includes("达上限")))
+    ) {
+      // 如果是给自己点赞（#赞我），返回更自然的提示
+      try {
+        if (e && String(e.user_id) === String(userId)) {
+          return "今天已经给你点过赞啦～";
         }
-
-        return util.getReplyTemplate("limit", { username });
+      } catch (ex) {
+        // 忽略比较错误，回退到默认模板
       }
 
-      // 如果 NapCat 返回了业务消息（message/wording），优先使用它作为回复，避免随机模板带来的尴尬
-      if (nap && (nap.wording || nap.message)) {
-        try {
-          return nap.wording || nap.message;
-        } catch (e) {
-          // 若读取 nap 字段出错则回退到默认模板
-        }
-      }
-
-      return util.getReplyTemplate("stranger", { username });
+      return util.getReplyTemplate("limit", { username });
     }
 
+    // 如果 NapCat 返回了业务消息（message/wording），优先使用它作为回复，避免随机模板带来的尴尬
+    if (nap && (nap.wording || nap.message)) {
+      try {
+        return nap.wording || nap.message;
+      } catch (e) {
+        // 若读取 nap 字段出错则回退到默认模板
+      }
+    }
+
+    // 最后返回 stranger 模板（包含更中性的信息），否则使用成功模板
     return totalLikes > 0
       ? util.getReplyTemplate("success", { username, total_likes: totalLikes })
-      : "点赞失败了呢...";
+      : util.getReplyTemplate("stranger", { username });
   }
 
   // 发送者要求点赞
