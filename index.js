@@ -48,6 +48,61 @@ export class SendLike extends plugin {
     };
   }
 
+  // 发送者要求点赞
+  async likeMe(e) {
+    try {
+      logger.info(`[SendLike][likeMe] start user:${e.user_id}`);
+      const reply = await this._like(e, e.user_id);
+      try {
+        await e.reply(reply);
+        logger.info(`[SendLike][likeMe] replied to user:${e.user_id} reply:${reply}`);
+      } catch (err) {
+        logger.error(`[SendLike][likeMe] failed to reply: ${String(err)}`);
+      }
+      return true;
+    } catch (err) {
+      logger.error(`[SendLike][likeMe] unexpected error: ${String(err)}`);
+      try {
+        await e.reply("处理点赞时发生错误，请稍后重试");
+      } catch (e2) {
+        logger.error(`[SendLike][likeMe] failed to send fallback reply: ${String(e2)}`);
+      }
+      return true;
+    }
+  }
+
+  // 给@的用户点赞
+  async likeAt(e) {
+    try {
+      const util = new LikeUtil(e);
+      const atList = util.getAtUsers();
+      if (atList.length === 0) return false;
+
+      logger.info(`[SendLike][likeAt] start user:${e.user_id} at:${JSON.stringify(atList)}`);
+      const replies = [];
+      for (const userId of atList) {
+        const reply = await this._like(e, userId);
+        replies.push(reply);
+      }
+      const out = replies.join("\\n");
+      try {
+        await e.reply(out);
+        logger.info(`[SendLike][likeAt] replied: ${out}`);
+      } catch (err) {
+        logger.error(`[SendLike][likeAt] failed to reply: ${String(err)}`);
+      }
+      return true;
+    } catch (err) {
+      logger.error(`[SendLike][likeAt] unexpected error: ${String(err)}`);
+      try {
+        await e.reply("处理点赞时发生错误，请稍后重试");
+      } catch (e2) {
+        logger.error(`[SendLike][likeAt] failed to send fallback reply: ${String(e2)}`);
+      }
+      return true;
+    }
+  }
+
   // 初始化
   async init() {
     await Config.init();
@@ -56,7 +111,8 @@ export class SendLike extends plugin {
 
   // 点赞核心逻辑
   async _like(e, userId) {
-    const util = new LikeUtil(e);
+    try {
+      const util = new LikeUtil(e);
     let totalLikes = 0;
     const userInfo = await util.getUserInfo(userId);
     const username = userInfo?.nickname || "你";
@@ -171,10 +227,19 @@ export class SendLike extends plugin {
       }
     }
 
-    // 最后返回 stranger 模板（包含更中性的信息），否则使用成功模板
-    return totalLikes > 0
-      ? util.getReplyTemplate("success", { username, total_likes: totalLikes })
-      : util.getReplyTemplate("stranger", { username });
+      // 最后返回 stranger 模板（包含更中性的信息），否则使用成功模板
+      return totalLikes > 0
+        ? util.getReplyTemplate("success", { username, total_likes: totalLikes })
+        : util.getReplyTemplate("stranger", { username });
+    } catch (err) {
+      try {
+        logger.error(`[SendLike][_like] unexpected error for user ${userId}: ${String(err)}`);
+      } catch (e) {
+        // ignore
+      }
+      // 返回中性错误信息，避免抛出未捕获异常导致框架认为处理已完成但无响应
+      return "点赞过程中发生异常，请查看日志或联系管理员";
+    }
   }
 
   // 订阅自动点赞
