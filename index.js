@@ -70,28 +70,95 @@ export class SendLike extends plugin {
     // 处理 NapCat 业务错误返回（例如达到上限）
     const nap = result?.nap || null;
     const errStr = result?.error || "";
-      // 不要把包含 “权限” 字眼的返回当作确定性的“对方拒绝陌生人点赞”断言。
-      // 一些宿主或 NapCat 在失败时会返回含糊的提示词（例如权限/隐私），但这并不
-      // 意味着插件可以或应该更改目标用户的隐私设置。统一使用 stranger 模板
-      // 返回更中性的失败提示，避免误导用户。若未来需要更细致的分类再补充。
-      // （保留 nap/err 的原始信息以便日志分析）
-      if ((nap && nap.message && nap.message.includes("权限")) || errStr.includes("权限")) {
+    // 不要把包含 “权限” 字眼的返回当作确定性的“对方拒绝陌生人点赞”断言。
+    // 一些宿主或 NapCat 在失败时会返回含糊的提示词（例如权限/隐私），但这并不
+    // 意味着插件可以或应该更改目标用户的隐私设置。统一使用 stranger 模板
+    // 返回更中性的失败提示，避免误导用户。若未来需要更细致的分类再补充。
+    // （保留 nap/err 的原始信息以便日志分析）
+    if ((nap && nap.message && nap.message.includes("权限")) || errStr.includes("权限")) {
+      return util.getReplyTemplate("stranger", { username });
+    }
+
+    if (nap && nap.retcode === 1200) {
+      const napMsg = (nap.message || nap.wording || "").toString();
+
+      // 针对 NapCat 提示 "点赞数无效" 的情况：可能是单次传 50 超出宿主允许的单次最大值。
+      // 这时尝试降级为多次 10 次尝试（5 次）以兼容宿主限制。
+      if (napMsg.includes("点赞数无效") || napMsg.includes("点赞数不合法")) {
+        logger.info(
+          `[SendLike][_like] napcat returned invalid like count, fallback to chunks for user ${userId}`
+        );
+
+        // 依次尝试 5 次 10 点赞
+        const chunks = [10, 10, 10, 10, 10];
+        let lastNap = null;
+        for (const chunk of chunks) {
+          const part = await util.sendLike(userId, chunk);
+          try {
+            logger.info(
+              `[SendLike][_like] chunk attempt user:${userId} chunk:${chunk} res:${JSON.stringify(
+                part
+              )}`
+            );
+          } catch (e) {
+            // ignore
+          }
+
+          if (part && part.success) {
+            totalLikes += chunk;
+            // 小间隔，避免被宿主限流
+            await new Promise((r) => setTimeout(r, 200));
+            continue;
+          }
+
+          // 保存最后一次 nap 以便后续返回
+          lastNap = part?.nap || null;
+
+          // 如果子请求返回限额/已赞提示，按限额逻辑处理
+          const pnapMsg = (lastNap?.message || lastNap?.wording || "").toString();
+          if (pnapMsg.includes("达上限") || pnapMsg.includes("已赞") || pnapMsg.includes("已经")) {
+            try {
+              if (e && String(e.user_id) === String(userId)) {
+                return "今天已经给你点过赞啦～";
+              }
+            } catch (ex) {
+              // ignore
+            }
+            return util.getReplyTemplate("limit", { username });
+          }
+
+          // 其他错误继续尝试下一个 chunk
+        }
+
+        // 如果通过 chunks 有部分成功则返回 success，否则优先返回最后一次 nap 信息
+        if (totalLikes > 0) {
+          return util.getReplyTemplate("success", {
+            username,
+            total_likes: totalLikes,
+          });
+        }
+
+        if (lastNap && (lastNap.wording || lastNap.message)) {
+          return lastNap.wording || lastNap.message;
+        }
+
         return util.getReplyTemplate("stranger", { username });
       }
 
-    if (
-      nap &&
-      (nap.retcode === 1200 || (nap.message && nap.message.includes("达上限")))
-    ) {
-      // 如果是给自己点赞（#赞我），返回更自然的提示
-      try {
-        if (e && String(e.user_id) === String(userId)) {
-          return "今天已经给你点过赞啦～";
+      // 其它 retcode===1200 的情况（例如达到上限/已赞等），更严格地通过消息文本判断是否是“已赞过”场景
+      const veryMsg = nap.message || nap.wording || "";
+      if (veryMsg && /已|赞过|已赞|重复|不能重复/.test(veryMsg)) {
+        try {
+          if (e && String(e.user_id) === String(userId)) {
+            return "今天已经给你点过赞啦～";
+          }
+        } catch (ex) {
+          // ignore
         }
-      } catch (ex) {
-        // 忽略比较错误，回退到默认模板
+        return util.getReplyTemplate("limit", { username });
       }
 
+      // 其它未覆盖的 retcode 1200，回落到通用 limit 模板以提示用户业务受限
       return util.getReplyTemplate("limit", { username });
     }
 
@@ -108,29 +175,6 @@ export class SendLike extends plugin {
     return totalLikes > 0
       ? util.getReplyTemplate("success", { username, total_likes: totalLikes })
       : util.getReplyTemplate("stranger", { username });
-  }
-
-  // 发送者要求点赞
-  async likeMe(e) {
-    const reply = await this._like(e, e.user_id);
-    await e.reply(reply);
-    return true;
-  }
-
-  // 给@的用户点赞
-  async likeAt(e) {
-    const util = new LikeUtil(e);
-    const atList = util.getAtUsers();
-    if (atList.length === 0) return false;
-
-    const replies = [];
-    for (const userId of atList) {
-      const reply = await this._like(e, userId);
-      replies.push(reply);
-    }
-
-    await e.reply(replies.join("\\n"));
-    return true;
   }
 
   // 订阅自动点赞
