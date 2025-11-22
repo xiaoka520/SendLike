@@ -173,6 +173,15 @@ export class SendLike extends plugin {
           // 如果子请求返回限额/已赞提示，按限额逻辑处理
           const pnapMsg = (lastNap?.message || lastNap?.wording || "").toString();
           if (pnapMsg.includes("达上限") || pnapMsg.includes("已赞") || pnapMsg.includes("已经")) {
+            // 如果在分块过程中已经有部分成功，则应向用户反馈实际成功的数量；
+            // 只有在没有成功点赞的情况下才返回 limit 模板。
+            if (totalLikes > 0) {
+              return util.getReplyTemplate("success", {
+                username,
+                total_likes: totalLikes,
+              });
+            }
+
             try {
               if (e && String(e.user_id) === String(userId)) {
                 return "今天已经给你点过赞啦～";
@@ -204,6 +213,14 @@ export class SendLike extends plugin {
       // 其它 retcode===1200 的情况（例如达到上限/已赞等），更严格地通过消息文本判断是否是“已赞过”场景
       const veryMsg = nap.message || nap.wording || "";
       if (veryMsg && /已|赞过|已赞|重复|不能重复/.test(veryMsg)) {
+        // 若之前已有部分点赞成功，优先返回 success 并告知实际点赞数量；否则返回 limit 提示
+        if (totalLikes > 0) {
+          return util.getReplyTemplate("success", {
+            username,
+            total_likes: totalLikes,
+          });
+        }
+
         try {
           if (e && String(e.user_id) === String(userId)) {
             return "今天已经给你点过赞啦～";
