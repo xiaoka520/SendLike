@@ -126,14 +126,6 @@ export class SendLike extends plugin {
     // 处理 NapCat 业务错误返回（例如达到上限）
     const nap = result?.nap || null;
     const errStr = result?.error || "";
-    // 不要把包含 “权限” 字眼的返回当作确定性的“对方拒绝陌生人点赞”断言。
-    // 一些宿主或 NapCat 在失败时会返回含糊的提示词（例如权限/隐私），但这并不
-    // 意味着插件可以或应该更改目标用户的隐私设置。统一使用 stranger 模板
-    // 返回更中性的失败提示，避免误导用户。若未来需要更细致的分类再补充。
-    // （保留 nap/err 的原始信息以便日志分析）
-    if ((nap && nap.message && nap.message.includes("权限")) || errStr.includes("权限")) {
-      return util.getReplyTemplate("stranger", { username });
-    }
 
     if (nap && nap.retcode === 1200) {
       const napMsg = (nap.message || nap.wording || "").toString();
@@ -235,7 +227,15 @@ export class SendLike extends plugin {
       return util.getReplyTemplate("limit", { username });
     }
 
-    // 如果 NapCat 返回了业务消息（message/wording），优先使用它作为回复，避免随机模板带来的尴尬
+    // 如果已经有实际成功的点赞，优先反馈成功并显示实际发送的数量
+    if (totalLikes > 0) {
+      return util.getReplyTemplate("success", {
+        username,
+        total_likes: totalLikes,
+      });
+    }
+
+    // 若未成功，则查看 NapCat/宿主返回的业务消息（message/wording）并直接返回，以便保留宿主提示
     if (nap && (nap.wording || nap.message)) {
       try {
         return nap.wording || nap.message;
@@ -244,10 +244,8 @@ export class SendLike extends plugin {
       }
     }
 
-      // 最后返回 stranger 模板（包含更中性的信息），否则使用成功模板
-      return totalLikes > 0
-        ? util.getReplyTemplate("success", { username, total_likes: totalLikes })
-        : util.getReplyTemplate("stranger", { username });
+    // 最后返回 stranger 模板（包含更中性的信息）
+    return util.getReplyTemplate("stranger", { username });
     } catch (err) {
       try {
         logger.error(`[SendLike][_like] unexpected error for user ${userId}: ${String(err)}`);
