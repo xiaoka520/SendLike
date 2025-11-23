@@ -189,10 +189,15 @@ export class SendLike extends plugin {
 
         // 如果通过 chunks 有部分成功则返回 success，否则优先返回最后一次 nap 信息
         if (totalLikes > 0) {
-          return util.getReplyTemplate("success", {
+          let msg = util.getReplyTemplate("success", {
             username,
             total_likes: totalLikes,
           });
+          // 若为部分成功（小于预期 50），在消息后附加实际发送数量的说明
+          if (totalLikes > 0 && totalLikes < 50) {
+            msg = `${msg}（已发送 ${totalLikes} 个赞）`;
+          }
+          return msg;
         }
 
         if (lastNap && (lastNap.wording || lastNap.message)) {
@@ -207,10 +212,14 @@ export class SendLike extends plugin {
       if (veryMsg && /已|赞过|已赞|重复|不能重复/.test(veryMsg)) {
         // 若之前已有部分点赞成功，优先返回 success 并告知实际点赞数量；否则返回 limit 提示
         if (totalLikes > 0) {
-          return util.getReplyTemplate("success", {
+          let msg = util.getReplyTemplate("success", {
             username,
             total_likes: totalLikes,
           });
+          if (totalLikes > 0 && totalLikes < 50) {
+            msg = `${msg}（已发送 ${totalLikes} 个赞）`;
+          }
+          return msg;
         }
 
         try {
@@ -229,10 +238,14 @@ export class SendLike extends plugin {
 
     // 如果已经有实际成功的点赞，优先反馈成功并显示实际发送的数量
     if (totalLikes > 0) {
-      return util.getReplyTemplate("success", {
+      let msg = util.getReplyTemplate("success", {
         username,
         total_likes: totalLikes,
       });
+      if (totalLikes > 0 && totalLikes < 50) {
+        msg = `${msg}（已发送 ${totalLikes} 个赞）`;
+      }
+      return msg;
     }
 
     // 若未成功，则查看 NapCat/宿主返回的业务消息（message/wording）并直接返回，以便保留宿主提示
